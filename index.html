@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>穿越火线 3D：运输船 (CrossFire - Transport Ship TD)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><polygon points='32,4 40,24 60,24 44,37 50,58 32,45 14,58 20,37 4,24 24,24' fill='%23f5b027' stroke='%23994400' stroke-width='3'/></svg>" />
+  <script type="module" crossorigin src="./assets/index-CW8Q2H9V.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-4pSyx2Jd.css">
+</head>
+<body>
+  <div id="game-root">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Blood / Damage Screen Vignette & Directional Hit Indicators -->
+    <div id="damage-vignette"></div>
+    <div id="spawn-shield-vignette"></div>
+    <div id="flash-overlay"></div>
+    <div id="hit-direction-layer"></div>
+
+    <!-- Sniper Dual-Stage Scope Overlay -->
+    <div id="sniper-scope" class="hidden">
+      <div class="scope-circle">
+        <div class="scope-line-h"></div>
+        <div class="scope-line-v"></div>
+        <div class="scope-ticks-h"></div>
+        <div class="scope-ticks-v"></div>
+        <div class="scope-red-dot"></div>
+        <div id="scope-zoom-label">ZOOM 2.5x</div>
+      </div>
+    </div>
+
+    <!-- Dynamic Crosshair & Hitmarker -->
+    <div id="crosshair">
+      <span class="ch-bar ch-top"></span>
+      <span class="ch-bar ch-bottom"></span>
+      <span class="ch-bar ch-left"></span>
+      <span class="ch-bar ch-right"></span>
+      <span class="ch-dot"></span>
+    </div>
+    <div id="hitmarker" class="hidden">
+      <span class="hm-line hm-1"></span>
+      <span class="hm-line hm-2"></span>
+      <span class="hm-line hm-3"></span>
+      <span class="hm-line hm-4"></span>
+    </div>
+
+    <!-- In-Game Tactical HUD -->
+    <div id="hud" class="hidden">
+      <!-- Top Left: Tactical Radar & Location Callout -->
+      <div id="radar-panel">
+        <div class="radar-header">
+          <span id="zone-name">保卫者基地舱</span>
+          <span id="fps-counter">60 FPS</span>
+        </div>
+        <canvas id="radar-canvas" width="176" height="176"></canvas>
+        <div class="radar-legend">
+          <span><i class="dot-self"></i>自身</span>
+          <span><i class="dot-ally"></i>友军</span>
+          <span><i class="dot-enemy"></i>交火敌军</span>
+        </div>
+      </div>
+
+      <!-- Top Center: Classic CF TD Scoreboard -->
+      <div id="top-score-bar">
+        <div class="team-score-box team-gr">
+          <div class="team-badge">GR</div>
+          <div class="team-meta">
+            <span class="team-title">保卫者</span>
+            <span id="score-gr" class="score-num">0</span>
+          </div>
+        </div>
+        <div class="match-center-box">
+          <div class="target-kills-row">
+            <span class="mode-tag">团队竞技 · 运输船</span>
+            <span id="target-kills-label" class="target-num">100</span>
+          </div>
+          <div id="match-timer">10:00</div>
+        </div>
+        <div class="team-score-box team-bl">
+          <div class="team-meta align-right">
+            <span class="team-title">潜伏者</span>
+            <span id="score-bl" class="score-num">0</span>
+          </div>
+          <div class="team-badge">BL</div>
+        </div>
+      </div>
+
+      <!-- Top Right: Kill Feed -->
+      <div id="kill-feed"></div>
+
+      <!-- Center-Top Quick Tactical Prompts -->
+      <div id="center-notice" class="hidden"></div>
+
+      <!-- Lower-Center: Iconic CF Multi-Kill Winged Star Badge -->
+      <div id="kill-medal-box" class="hidden">
+        <div id="kill-medal-svg"></div>
+        <div id="kill-medal-title">黄金爆头</div>
+        <div id="kill-medal-sub">HEADSHOT</div>
+      </div>
+
+      <!-- Bottom Left: Classic CF Health & Armor + Spawn Protection -->
+      <div id="status-panel">
+        <div id="spawn-protect-pill" class="hidden">复活无敌保护 <span id="spawn-protect-time">3.0</span>s</div>
+        <div class="vitals-row">
+          <div class="vital-block">
+            <span class="vital-tag">AC</span>
+            <span id="hud-armor" class="vital-val">100</span>
+            <div class="vital-bar"><div id="bar-armor" class="vital-fill armor-fill"></div></div>
+          </div>
+          <div class="vital-block">
+            <span class="vital-tag hp-tag">HP</span>
+            <span id="hud-hp" class="vital-val">100</span>
+            <div class="vital-bar"><div id="bar-hp" class="vital-fill hp-fill"></div></div>
+          </div>
+        </div>
+        <div class="stance-hint">
+          <span id="stance-indicator">站立</span> ·
+          <span id="bag-indicator">背包 1</span> ·
+          <span class="key-chip">V</span> 第三人称越肩 ·
+          <span class="key-chip">B</span> 换背包 ·
+          <span class="key-chip">P</span> 航拍 ·
+          <span class="key-chip">TAB</span> 战绩
+        </div>
+      </div>
+
+      <!-- Bottom Right: Weapon Slots & Ammo -->
+      <div id="weapon-panel">
+        <div id="bag-switcher-drawer" class="hidden">
+          <div class="bag-drawer-title">选择战术背包 (按数字 1-4 或点击切换)</div>
+          <div class="bag-drawer-list">
+            <button data-bag="0" class="bag-opt active"><b>B1</b> AK-47 火麒麟</button>
+            <button data-bag="1" class="bag-opt"><b>B2</b> M4A1-S 迷彩消音</button>
+            <button data-bag="2" class="bag-opt"><b>B3</b> AWM-A 绿皮狙击</button>
+            <button data-bag="3" class="bag-opt"><b>B4</b> 巴雷特-毁灭大炮</button>
+          </div>
+        </div>
+        <div id="weapon-slots">
+          <div class="w-slot active" data-slot="1"><span>1</span> <em id="slot1-name">AK-47</em></div>
+          <div class="w-slot" data-slot="2"><span>2</span> <em>沙漠之鹰</em></div>
+          <div class="w-slot" data-slot="3"><span>3</span> <em>尼泊尔军刀</em></div>
+          <div class="w-slot" data-slot="4"><span>4</span> <em id="slot4-name">高爆手雷</em></div>
+        </div>
+        <div class="ammo-readout">
+          <div id="current-weapon-title">AK-47 · 经典突击步枪</div>
+          <div class="ammo-digits">
+            <span id="hud-ammo-mag">35</span>
+            <span class="ammo-sep">/</span>
+            <span id="hud-ammo-res">105</span>
+          </div>
+          <div id="reload-bar-wrap" class="hidden">
+            <div id="reload-bar-fill"></div>
+            <span>换弹中 RELOADING...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Respawn Countdown Overlay -->
+      <div id="respawn-banner" class="hidden">
+        <div class="respawn-killer" id="respawn-killer-info">被 潜伏者 击杀</div>
+        <div class="respawn-timer">复活倒计时 <span id="respawn-sec">3.0</span> 秒</div>
+        <div class="respawn-tip">等待复活期间可按 <b>[B]</b> 或底部按钮更换主战武器背包</div>
+      </div>
+
+      <!-- Aerial Overview Banner -->
+      <div id="overview-banner" class="hidden">
+        <span>运输船 3D 全景航拍视角 (鼠标拖拽旋转视角 · 滚轮缩放 · 按 <b>[P]</b> 返回第一人称战斗)</span>
+        <button id="exit-overview-btn">返回第一人称</button>
+      </div>
+    </div>
+
+    <!-- TAB Tactical Scoreboard Modal -->
+    <div id="tab-scoreboard" class="hidden">
+      <div class="sb-card">
+        <div class="sb-header">
+          <span>CROSSFIRE · 团队竞技模式 — 运输船 (TD_SHIP)</span>
+          <span id="sb-target-info">目标 100 杀</span>
+        </div>
+        <div class="sb-columns">
+          <div class="sb-team-col">
+            <div class="sb-team-banner gr-banner">保卫者 GLOBAL RISK (<span id="sb-gr-total">0</span>)</div>
+            <table>
+              <thead><tr><th>士兵代号</th><th>主武器</th><th>击杀</th><th>阵亡</th><th>爆头</th><th>延迟</th></tr></thead>
+              <tbody id="sb-gr-rows"></tbody>
+            </table>
+          </div>
+          <div class="sb-team-col">
+            <div class="sb-team-banner bl-banner">潜伏者 BLACK LIST (<span id="sb-bl-total">0</span>)</div>
+            <table>
+              <thead><tr><th>士兵代号</th><th>主武器</th><th>击杀</th><th>阵亡</th><th>爆头</th><th>延迟</th></tr></thead>
+              <tbody id="sb-bl-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lobby / Tactical Briefing Menu -->
+    <div id="lobby-overlay">
+      <div class="lobby-panel">
+        <div class="lobby-brand">
+          <div class="cf-star">★</div>
+          <div>
+            <h1>穿越火线 3D · 运输船</h1>
+            <p class="subtitle">CROSSFIRE: TRANSPORT SHIP — 1:1 战术立体还原 · 穿箱爆头 · 双侧地下暗道 · 狙击高台</p>
+          </div>
+        </div>
+
+        <div class="lobby-grid">
+          <div class="lobby-section">
+            <h3>1. 选择所属阵营与出战角色</h3>
+            <div class="choice-row" id="team-select">
+              <button data-val="GR" class="choice-btn active">
+                <strong>保卫者 (Global Risk)</strong>
+                <small>舰桥侧出生 · 蓝灰特种阵营</small>
+              </button>
+              <button data-val="BL" class="choice-btn">
+                <strong>潜伏者 (Black List)</strong>
+                <small>船首侧出生 · 荒漠突击阵营</small>
+              </button>
+            </div>
+            <div class="choice-row" id="skin-select" style="margin-top:8px;">
+              <button data-val="hero_girl" class="choice-btn active">
+                <strong>★ 紫瞳双马尾少女 (英雄级)</strong>
+                <small>专属黑紫机能手模 · 按 V 可第三人称越肩观赏</small>
+              </button>
+              <button data-val="classic" class="choice-btn">
+                <strong>经典战术特种兵 (斯沃特/雇佣兵)</strong>
+                <small>写实迷彩防弹衣与战术手套</small>
+              </button>
+            </div>
+
+            <h3>2. 选择初始战术背包 (游戏中按 B 可随时在基地切换)</h3>
+            <div class="choice-grid-2" id="bag-select">
+              <button data-val="0" class="choice-btn active">
+                <strong>背包1 · AK-47 火麒麟</strong>
+                <small>无视头盔一枪爆头 · 点射霸主</small>
+              </button>
+              <button data-val="1" class="choice-btn">
+                <strong>背包2 · M4A1-S 迷彩消音</strong>
+                <small>高稳速射 · 82%高穿木箱伤害</small>
+              </button>
+              <button data-val="2" class="choice-btn">
+                <strong>背包3 · AWM-A 绿皮狙击</strong>
+                <small>双倍开镜 · 支持 Q 键切枪瞬狙</small>
+              </button>
+              <button data-val="3" class="choice-btn">
+                <strong>背包4 · 巴雷特 M82A1 大炮</strong>
+                <small>毁灭重狙 · 隔木箱满伤一击必杀</small>
+              </button>
+            </div>
+          </div>
+
+          <div class="lobby-section">
+            <h3>3. 房间规则配置</h3>
+            <div class="settings-row">
+              <label>对战人数</label>
+              <div class="pill-group" id="roster-select">
+                <button data-val="5" class="pill-btn active">5 v 5 经典团竞</button>
+                <button data-val="8" class="pill-btn">8 v 8 满员激战</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>目标击杀</label>
+              <div class="pill-group" id="target-select">
+                <button data-val="50" class="pill-btn">50 杀</button>
+                <button data-val="100" class="pill-btn active">100 杀</button>
+                <button data-val="150" class="pill-btn">150 杀</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>AI 战力</label>
+              <div class="pill-group" id="diff-select">
+                <button data-val="easy" class="pill-btn">新兵训练</button>
+                <button data-val="normal" class="pill-btn active">老兵对抗</button>
+                <button data-val="hard" class="pill-btn">枪王排位</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>鼠标灵敏度 <span id="sens-val">1.0</span></label>
+              <input id="sens-slider" type="range" min="0.3" max="2.5" step="0.1" value="1.0" />
+            </div>
+
+            <div class="controls-cheatsheet">
+              <div><b>WASD</b> 移动 · <b>Shift</b> 静步 · <b>Ctrl/C</b> 下蹲 · <b>Space</b> 跳跃上箱</div>
+              <div><b>左键</b> 射击/轻刀 · <b>右键</b> 狙击开镜/重刀 · <b>R</b> 换弹 · <b>G</b> 快速投雷</div>
+              <div><b>1/2/3/4</b> 切枪 · <b>Q</b> 瞬狙切刀 · <b>V</b> 第一/第三人称切换 · <b>B</b> 换背包 · <b>P</b> 航拍</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="start-btn" class="primary-launch-btn">进入运输船战场 (START MATCH)</button>
+          <button id="preview-ship-btn" class="secondary-btn">先看 3D 运输船全景航拍</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Overlay (when ESC unlocks pointer during active match) -->
+    <div id="pause-overlay" class="hidden">
+      <div class="pause-card">
+        <h2>战术暂停 · 运输船</h2>
+        <p>点击下方按钮继续锁定准星作战，或切换武器背包与地图视角</p>
+        <div class="pause-btns">
+          <button id="resume-btn" class="primary-launch-btn">继续战斗 (点击锁定鼠标)</button>
+          <button id="pause-overview-btn" class="secondary-btn">3D 航拍俯瞰全船</button>
+          <button id="back-lobby-btn" class="secondary-btn">返回房间大厅重新配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match End Result Modal -->
+    <div id="result-overlay" class="hidden">
+      <div class="result-card">
+        <div id="result-badge" class="result-title">ACE VICTORY · 保卫者胜利</div>
+        <div id="result-scoreline" class="result-sub">100 : 78</div>
+        <div id="result-stats" class="result-stats-row"></div>
+        <div class="pause-btns">
+          <button id="rematch-btn" class="primary-launch-btn">再来一局 (REMATCH)</button>
+          <button id="result-lobby-btn" class="secondary-btn">返回大厅配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch Controls (Auto-activated on mobile / touch screens) -->
+    <div id="touch-controls" class="hidden">
+      <div id="touch-move-zone"><div id="touch-move-stick"><div id="touch-move-knob"></div></div></div>
+      <div id="touch-look-zone"></div>
+      <div class="touch-action-cluster">
+        <button id="t-btn-fire" class="t-btn t-fire">开火</button>
+        <button id="t-btn-aim" class="t-btn t-aim">开镜/重刀</button>
+        <button id="t-btn-jump" class="t-btn t-jump">跳箱</button>
+        <button id="t-btn-crouch" class="t-btn t-crouch">蹲</button>
+        <button id="t-btn-reload" class="t-btn t-reload">换弹</button>
+        <button id="t-btn-switch" class="t-btn t-switch">切枪Q</button>
+        <button id="t-btn-nade" class="t-btn t-nade">手雷</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
