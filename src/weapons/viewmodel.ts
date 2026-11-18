@@ -27,7 +27,14 @@ export class FirstPersonViewmodel {
 
     const buildWithHands = (id: WeaponId, frontZ: number, oneHanded = false): THREE.Group => {
       const grp = assets.createWeaponMesh(id);
-      this.addTacticalArms(grp, team, frontZ, oneHanded);
+      if (!oneHanded) {
+        const armL = assets.createFPSArm(team, true);
+        armL.position.set(-0.006, -0.02, frontZ);
+        grp.add(armL);
+      }
+      const armR = assets.createFPSArm(team, false);
+      armR.position.set(oneHanded ? 0.02 : 0.0, oneHanded ? -0.055 : -0.072, oneHanded ? -0.14 : 0.025);
+      grp.add(armR);
       return grp;
     };
 
@@ -61,38 +68,8 @@ export class FirstPersonViewmodel {
   }
 
   private addTacticalArms(g: THREE.Group, team: TeamId, frontZ: number, oneHanded: boolean): void {
-    const sleeveMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x26405c : 0x9b7c54,
-      roughness: 0.76,
-    });
-    const cuffMat = new THREE.MeshStandardMaterial({ color: 0x161a20, roughness: 0.65 });
-    const gloveMat = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.56, metalness: 0.16 });
-
-    if (!oneHanded) {
-      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.32, 12), sleeveMat);
-      armL.position.set(-0.088, -0.155, frontZ + 0.16);
-      armL.rotation.set(Math.PI / 2 + 0.36, 0.38, 0);
-      g.add(armL);
-
-      const handL = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.046, 0.088), gloveMat);
-      handL.position.set(-0.008, -0.028, frontZ);
-      g.add(handL);
-    }
-
-    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.039, 0.28, 12), sleeveMat);
-    armR.position.set(oneHanded ? 0.045 : 0.032, -0.125, oneHanded ? -0.01 : 0.14);
-    armR.rotation.set(Math.PI / 2 + 0.2, -0.12, 0);
-    g.add(armR);
-
-    const cuffR = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.03, 12), cuffMat);
-    cuffR.position.set(oneHanded ? 0.028 : 0.012, -0.085, oneHanded ? -0.10 : 0.04);
-    cuffR.rotation.set(Math.PI / 2 + 0.2, -0.12, 0);
-    g.add(cuffR);
-
-    const handR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), gloveMat);
-    handR.scale.set(0.95, 0.85, 1.2);
-    handR.position.set(oneHanded ? 0.02 : 0.0, oneHanded ? -0.058 : -0.072, oneHanded ? -0.135 : 0.015);
-    g.add(handR);
+    // Kept unused signature fallback; constructor uses Blender 5-finger sculpted FPS arms directly
+    void g; void team; void frontZ; void oneHanded;
   }
 
   public setScopedHidden(scoped: boolean): void {

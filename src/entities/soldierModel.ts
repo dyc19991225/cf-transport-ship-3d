@@ -21,133 +21,45 @@ export class SoldierVisualRig {
   constructor(team: TeamId, isAllyToPlayer: boolean, weaponId: WeaponId, assets: LoadedGameAssets) {
     this.root.add(this.bodyPivot);
 
-    const uniformMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x264260 : 0xb58e5c,
-      roughness: 0.76,
-    });
-    const pantsMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x1c2f44 : 0x6e583b,
-      roughness: 0.8,
-    });
-    const vestMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x171e26 : 0x322b22,
-      roughness: 0.62,
-      metalness: 0.25,
-    });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd9aa85, roughness: 0.7 });
-    const headGearMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x1e2d3e : 0x9c2820,
-      roughness: 0.52,
-    });
-    const bootMat = new THREE.MeshStandardMaterial({ color: 0x14171a, roughness: 0.7 });
-
-    // Rounded Tactical Pelvis & Torso + MOLLE Plate Carrier Pouches
-    const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.19, 0.24, 12), pantsMat);
-    pelvis.scale.set(1.05, 1, 0.72);
-    pelvis.position.y = 0.84;
-    pelvis.castShadow = true;
-    this.bodyPivot.add(pelvis);
-
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.21, 0.56, 12), uniformMat);
-    torso.scale.set(1.05, 1, 0.68);
-    torso.position.y = 1.21;
-    torso.castShadow = true;
+    // 1. Blender 5.3 Sculpted Torso + MOLLE Plate Carrier + Mag Pouches + Radio!
+    const torso = assets.createSoldierLimb(team, 'Torso');
     this.bodyPivot.add(torso);
 
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.43, 0.31), vestMat);
-    vest.position.y = 1.22;
-    vest.castShadow = true;
-    this.bodyPivot.add(vest);
-
-    for (const px of [-0.14, 0, 0.14]) {
-      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.05), vestMat);
-      pouch.position.set(px, 1.1, -0.17);
-      this.bodyPivot.add(pouch);
-    }
-
-    // Sculpted Rounded Head + PASGT Helmet / Mercenary Headgear
-    this.headGroup.position.set(0, 1.54, 0);
+    // 2. Blender 5.3 Sculpted Head + PASGT Helmet/NVG/Goggles (GR) or Crimson Bandana/Shades (BL)!
+    this.headGroup.position.set(0, 1.48, 0);
+    this.headGroup.add(assets.createSoldierLimb(team, 'Head'));
     this.bodyPivot.add(this.headGroup);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), skinMat);
-    head.scale.set(0.94, 1.06, 0.96);
-    head.position.y = 0.14;
-    head.castShadow = true;
-    this.headGroup.add(head);
-
-    if (team === 'GR') {
-      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.178, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), headGearMat);
-      helmet.position.y = 0.16;
-      this.headGroup.add(helmet);
-
-      const goggles = new THREE.Mesh(
-        new THREE.BoxGeometry(0.27, 0.075, 0.06),
-        new THREE.MeshStandardMaterial({ color: 0x3b92e0, metalness: 0.85, roughness: 0.16 })
-      );
-      goggles.position.set(0, 0.16, -0.14);
-      this.headGroup.add(goggles);
-    } else {
-      const bandana = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.168, 0.1, 14), headGearMat);
-      bandana.position.y = 0.22;
-      this.headGroup.add(bandana);
-
-      const mask = new THREE.Mesh(new THREE.CylinderGeometry(0.156, 0.148, 0.15, 14), vestMat);
-      mask.position.y = 0.08;
-      this.headGroup.add(mask);
-    }
-
-    // Arms + Real Blender 5.3 High-Detail 3rd-Person Weapon!
-    this.armRightPivot.position.set(0.30, 1.4, 0);
-    this.armLeftPivot.position.set(-0.30, 1.4, 0);
+    // 3. Blender 5.3 Sculpted Articulated Arms + Deltoid Pads + Elbow Pads + Gloves + V2 Weapon!
+    this.armRightPivot.position.set(0.235, 1.39, 0);
+    this.armLeftPivot.position.set(-0.235, 1.39, 0);
+    this.armRightPivot.add(assets.createSoldierLimb(team, 'ArmR'));
+    this.armLeftPivot.add(assets.createSoldierLimb(team, 'ArmL'));
     this.bodyPivot.add(this.armRightPivot, this.armLeftPivot);
 
-    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.058, 0.5, 10), uniformMat);
-    armR.position.set(-0.05, -0.16, -0.16);
-    armR.rotation.x = Math.PI / 2.35;
-    armR.castShadow = true;
-    this.armRightPivot.add(armR);
-
-    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.058, 0.5, 10), uniformMat);
-    armL.position.set(0.13, -0.16, -0.2);
-    armL.rotation.set(Math.PI / 2.25, -0.34, 0);
-    armL.castShadow = true;
-    this.armLeftPivot.add(armL);
-
     const thirdPersonGun = assets.createWeaponMesh(weaponId);
-    thirdPersonGun.scale.setScalar(1.05);
-    thirdPersonGun.position.set(-0.08, -0.16, -0.2);
+    thirdPersonGun.scale.setScalar(1.08);
+    thirdPersonGun.position.set(-0.09, -0.17, -0.18);
     this.armRightPivot.add(thirdPersonGun);
 
-    const gunLen = weaponId === 'barrett' ? 0.95 : weaponId === 'awm' ? 0.85 : 0.72;
+    const gunLen = weaponId === 'barrett' ? 0.96 : weaponId === 'awm' ? 0.88 : 0.74;
     const flash = new THREE.Mesh(
       new THREE.SphereGeometry(0.09, 6, 6),
       new THREE.MeshBasicMaterial({ color: 0xffd25a })
     );
-    flash.position.set(-0.08, -0.15, -0.2 - gunLen);
+    flash.position.set(-0.07, -0.15, -0.2 - gunLen);
     flash.visible = false;
     this.armRightPivot.add(flash);
     this.muzzleFlash = flash;
 
-    // Legs + Kneepads + Combat Boots
-    this.legLeftPivot.position.set(-0.13, 0.76, 0);
-    this.legRightPivot.position.set(0.13, 0.76, 0);
+    // 4. Blender 5.3 Sculpted Articulated Cargo Legs + Knee Pads + Laced Combat Boots!
+    this.legLeftPivot.position.set(-0.12, 0.78, 0);
+    this.legRightPivot.position.set(0.12, 0.78, 0);
+    this.legLeftPivot.add(assets.createSoldierLimb(team, 'LegL'));
+    this.legRightPivot.add(assets.createSoldierLimb(team, 'LegR'));
     this.bodyPivot.add(this.legLeftPivot, this.legRightPivot);
 
-    for (const piv of [this.legLeftPivot, this.legRightPivot]) {
-      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.62, 10), pantsMat);
-      thigh.position.y = -0.31;
-      thigh.castShadow = true;
-      piv.add(thigh);
-
-      const kneepad = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.06), vestMat);
-      kneepad.position.set(0, -0.34, -0.08);
-      piv.add(kneepad);
-
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.17, 0.25), bootMat);
-      boot.position.set(0, -0.67, -0.03);
-      piv.add(boot);
-    }
-
+    // Golden Spawn Protection Shield Aura
     this.spawnShieldShell = new THREE.Mesh(
       new THREE.CylinderGeometry(0.48, 0.48, 1.88, 12, 1, true),
       new THREE.MeshBasicMaterial({
@@ -160,6 +72,7 @@ export class SoldierVisualRig {
     this.spawnShieldShell.position.y = 0.95;
     this.root.add(this.spawnShieldShell);
 
+    // Friendly Teammate Chevron Marker
     if (isAllyToPlayer) {
       const c = document.createElement('canvas');
       c.width = 64;
@@ -179,7 +92,7 @@ export class SoldierVisualRig {
       const tex = new THREE.CanvasTexture(c);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
       sp.scale.set(0.34, 0.34, 1);
-      sp.position.set(0, 2.12, 0);
+      sp.position.set(0, 2.14, 0);
       this.root.add(sp);
       this.allyMarker = sp;
     }
