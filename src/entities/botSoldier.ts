@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LoadedGameAssets } from '../assets/assetManager';
 import { CollisionWorld, MoveState } from '../physics/collisionWorld';
 import { SpawnPoint } from '../map/transportShipBuilder';
 import { SoldierVisualRig } from './soldierModel';
@@ -68,7 +69,8 @@ export class BotSoldier {
     team: TeamId,
     isAllyToPlayer: boolean,
     scene: THREE.Scene,
-    spawn: SpawnPoint
+    spawn: SpawnPoint,
+    assets: LoadedGameAssets
   ) {
     this.id = `bot_${team}_${index}`;
     const pool = team === 'GR' ? BOT_CALLSIGNS_GR : BOT_CALLSIGNS_BL;
@@ -106,7 +108,7 @@ export class BotSoldier {
     this.yaw = spawn.yaw;
     this.lastCheckPos.set(spawn.x, spawn.y, spawn.z);
 
-    this.rig = new SoldierVisualRig(team, isAllyToPlayer, this.weaponId);
+    this.rig = new SoldierVisualRig(team, isAllyToPlayer, this.weaponId, assets);
     scene.add(this.rig.root);
   }
 

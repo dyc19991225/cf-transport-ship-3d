@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LoadedGameAssets } from '../assets/assetManager';
 import { TeamId, WeaponId } from '../types';
 
 export class SoldierVisualRig {
@@ -17,133 +18,136 @@ export class SoldierVisualRig {
   private flashTimer = 0;
   private hitFlinch = 0;
 
-  constructor(team: TeamId, isAllyToPlayer: boolean, weaponId: WeaponId) {
+  constructor(team: TeamId, isAllyToPlayer: boolean, weaponId: WeaponId, assets: LoadedGameAssets) {
     this.root.add(this.bodyPivot);
 
-    // Distinct authentic CrossFire faction uniforms:
-    // GR 保卫者: Navy-slate SWAT uniform, black tactical vest, PASGT helmet + blue visor goggles
-    // BL 潜伏者: Desert tan mercenary jacket, dark olive chest rig, crimson/tan bandana + balaclava
     const uniformMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x26415e : 0xb28c5a,
-      roughness: 0.78,
+      color: team === 'GR' ? 0x264260 : 0xb58e5c,
+      roughness: 0.76,
     });
     const pantsMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x1c2d40 : 0x6e593d,
-      roughness: 0.82,
+      color: team === 'GR' ? 0x1c2f44 : 0x6e583b,
+      roughness: 0.8,
     });
     const vestMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x161c24 : 0x332d24,
-      roughness: 0.68,
-      metalness: 0.2,
+      color: team === 'GR' ? 0x171e26 : 0x322b22,
+      roughness: 0.62,
+      metalness: 0.25,
     });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd8a984, roughness: 0.72 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd9aa85, roughness: 0.7 });
     const headGearMat = new THREE.MeshStandardMaterial({
-      color: team === 'GR' ? 0x1e2c3c : 0x992820,
-      roughness: 0.56,
+      color: team === 'GR' ? 0x1e2d3e : 0x9c2820,
+      roughness: 0.52,
     });
-    const bootMat = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.75 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x14171a, roughness: 0.7 });
 
-    // Pelvis & Tactical Torso
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.26), pantsMat);
+    // Rounded Tactical Pelvis & Torso + MOLLE Plate Carrier Pouches
+    const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.19, 0.24, 12), pantsMat);
+    pelvis.scale.set(1.05, 1, 0.72);
     pelvis.position.y = 0.84;
     pelvis.castShadow = true;
     this.bodyPivot.add(pelvis);
 
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.54, 0.28), uniformMat);
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.21, 0.56, 12), uniformMat);
+    torso.scale.set(1.05, 1, 0.68);
     torso.position.y = 1.21;
     torso.castShadow = true;
     this.bodyPivot.add(torso);
 
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.51, 0.44, 0.32), vestMat);
+    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.43, 0.31), vestMat);
     vest.position.y = 1.22;
     vest.castShadow = true;
     this.bodyPivot.add(vest);
 
-    // Head + Helmet / Bandana (Center around Y = 1.66m — matches exact CF Headshot Seam!)
+    for (const px of [-0.14, 0, 0.14]) {
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.05), vestMat);
+      pouch.position.set(px, 1.1, -0.17);
+      this.bodyPivot.add(pouch);
+    }
+
+    // Sculpted Rounded Head + PASGT Helmet / Mercenary Headgear
     this.headGroup.position.set(0, 1.54, 0);
     this.bodyPivot.add(this.headGroup);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28), skinMat);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), skinMat);
+    head.scale.set(0.94, 1.06, 0.96);
     head.position.y = 0.14;
     head.castShadow = true;
     this.headGroup.add(head);
 
     if (team === 'GR') {
-      // Tactical SWAT Helmet + Goggles
-      const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.2, 0.33), headGearMat);
-      helmet.position.y = 0.22;
+      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.178, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), headGearMat);
+      helmet.position.y = 0.16;
       this.headGroup.add(helmet);
 
       const goggles = new THREE.Mesh(
-        new THREE.BoxGeometry(0.29, 0.08, 0.06),
-        new THREE.MeshStandardMaterial({ color: 0x3b8fd9, metalness: 0.75, roughness: 0.2 })
+        new THREE.BoxGeometry(0.27, 0.075, 0.06),
+        new THREE.MeshStandardMaterial({ color: 0x3b92e0, metalness: 0.85, roughness: 0.16 })
       );
       goggles.position.set(0, 0.16, -0.14);
       this.headGroup.add(goggles);
     } else {
-      // Black List Bandana + Dark Balaclava Mask
-      const bandana = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.13, 0.31), headGearMat);
-      bandana.position.y = 0.23;
+      const bandana = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.168, 0.1, 14), headGearMat);
+      bandana.position.y = 0.22;
       this.headGroup.add(bandana);
 
-      const mask = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.15, 0.29), vestMat);
+      const mask = new THREE.Mesh(new THREE.CylinderGeometry(0.156, 0.148, 0.15, 14), vestMat);
       mask.position.y = 0.08;
       this.headGroup.add(mask);
     }
 
-    // Arms + Third-Person Rifle/Sniper
-    this.armRightPivot.position.set(0.31, 1.4, 0);
-    this.armLeftPivot.position.set(-0.31, 1.4, 0);
+    // Arms + Real Blender 5.3 High-Detail 3rd-Person Weapon!
+    this.armRightPivot.position.set(0.30, 1.4, 0);
+    this.armLeftPivot.position.set(-0.30, 1.4, 0);
     this.bodyPivot.add(this.armRightPivot, this.armLeftPivot);
 
-    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), uniformMat);
-    armR.position.set(-0.04, -0.18, -0.14);
-    armR.rotation.x = Math.PI / 2.4;
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.058, 0.5, 10), uniformMat);
+    armR.position.set(-0.05, -0.16, -0.16);
+    armR.rotation.x = Math.PI / 2.35;
     armR.castShadow = true;
     this.armRightPivot.add(armR);
 
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), uniformMat);
-    armL.position.set(0.12, -0.18, -0.18);
-    armL.rotation.set(Math.PI / 2.3, -0.32, 0);
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.058, 0.5, 10), uniformMat);
+    armL.position.set(0.13, -0.16, -0.2);
+    armL.rotation.set(Math.PI / 2.25, -0.34, 0);
     armL.castShadow = true;
     this.armLeftPivot.add(armL);
 
-    // 3rd-Person Gun Mesh
-    const gunLen = weaponId === 'barrett' ? 1.05 : weaponId === 'awm' ? 0.95 : 0.76;
-    const gunCol = weaponId === 'awm' ? 0x3b5c35 : weaponId === 'ak47' ? 0x5c2618 : 0x22272e;
-    const gunMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.07, 0.11, gunLen),
-      new THREE.MeshStandardMaterial({ color: gunCol, metalness: 0.55, roughness: 0.45 })
-    );
-    gunMesh.position.set(-0.08, -0.14, -0.44);
-    this.armRightPivot.add(gunMesh);
+    const thirdPersonGun = assets.createWeaponMesh(weaponId);
+    thirdPersonGun.scale.setScalar(1.05);
+    thirdPersonGun.position.set(-0.08, -0.16, -0.2);
+    this.armRightPivot.add(thirdPersonGun);
 
+    const gunLen = weaponId === 'barrett' ? 0.95 : weaponId === 'awm' ? 0.85 : 0.72;
     const flash = new THREE.Mesh(
       new THREE.SphereGeometry(0.09, 6, 6),
       new THREE.MeshBasicMaterial({ color: 0xffd25a })
     );
-    flash.position.set(-0.08, -0.14, -0.44 - gunLen / 2);
+    flash.position.set(-0.08, -0.15, -0.2 - gunLen);
     flash.visible = false;
     this.armRightPivot.add(flash);
     this.muzzleFlash = flash;
 
-    // Legs + Combat Boots
+    // Legs + Kneepads + Combat Boots
     this.legLeftPivot.position.set(-0.13, 0.76, 0);
     this.legRightPivot.position.set(0.13, 0.76, 0);
     this.bodyPivot.add(this.legLeftPivot, this.legRightPivot);
 
     for (const piv of [this.legLeftPivot, this.legRightPivot]) {
-      const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.62, 0.19), pantsMat);
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.62, 10), pantsMat);
       thigh.position.y = -0.31;
       thigh.castShadow = true;
       piv.add(thigh);
 
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.25), bootMat);
+      const kneepad = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.06), vestMat);
+      kneepad.position.set(0, -0.34, -0.08);
+      piv.add(kneepad);
+
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.17, 0.25), bootMat);
       boot.position.set(0, -0.67, -0.03);
       piv.add(boot);
     }
 
-    // Golden Spawn Invulnerability Aura Shell (just like CrossFire's 3s golden glow!)
     this.spawnShieldShell = new THREE.Mesh(
       new THREE.CylinderGeometry(0.48, 0.48, 1.88, 12, 1, true),
       new THREE.MeshBasicMaterial({
@@ -156,7 +160,6 @@ export class SoldierVisualRig {
     this.spawnShieldShell.position.y = 0.95;
     this.root.add(this.spawnShieldShell);
 
-    // Friendly Teammate Overhead Chevron Sprite (so player never shoots allies!)
     if (isAllyToPlayer) {
       const c = document.createElement('canvas');
       c.width = 64;
@@ -224,25 +227,21 @@ export class SoldierVisualRig {
     }
 
     if (!alive) {
-      // Dramatic collapse onto ship deck
       const fall = Math.min(1, deathProgress / 0.36);
       this.bodyPivot.rotation.x = -fall * (Math.PI / 2.05);
       this.bodyPivot.position.y = fall * 0.14;
       return;
     }
 
-    // Crouch stance compression
     const crouchDrop = crouching ? -0.46 : 0;
     this.bodyPivot.position.y = THREE.MathUtils.lerp(this.bodyPivot.position.y, crouchDrop, Math.min(1, dt * 14));
     this.bodyPivot.rotation.x = -this.hitFlinch * 1.1;
 
-    // Aim pitch on arms & head
     const clampedPitch = THREE.MathUtils.clamp(pitch, -0.75, 0.75);
     this.armRightPivot.rotation.x = clampedPitch;
     this.armLeftPivot.rotation.x = clampedPitch;
     this.headGroup.rotation.x = clampedPitch * 0.65;
 
-    // Leg swing animation
     if (speed > 0.35) {
       this.walkPhase += dt * (4.5 + speed * 1.45);
       const swing = Math.sin(this.walkPhase) * 0.58;

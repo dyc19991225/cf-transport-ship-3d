@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SoundEngine } from '../audio/soundEngine';
-import { buildProceduralTextures } from '../textures/proceduralTextures';
+import { loadAllGameAssets, LoadedGameAssets } from '../assets/assetManager';
 import { CollisionWorld, MoveState, TargetableEntity } from '../physics/collisionWorld';
 import { buildTransportShip, BuiltShipWorld } from '../map/transportShipBuilder';
 import { LOADOUT_BAGS, WEAPONS } from '../weapons/weaponDefs';
@@ -24,10 +24,12 @@ export class GameEngine {
   private readonly collision = new CollisionWorld();
   private readonly hud = new HudController();
   private readonly effects: CombatEffects;
-  private readonly shipWorld: BuiltShipWorld;
   private readonly touch: TouchInputManager;
 
-  private viewmodel: FirstPersonViewmodel;
+  private assets!: LoadedGameAssets;
+  private shipWorld!: BuiltShipWorld;
+  private viewmodel!: FirstPersonViewmodel;
+  private assetsReady = false;
   private phase: GamePhase = 'lobby';
   private returnPhaseAfterOverview: GamePhase = 'lobby';
 
@@ -144,14 +146,7 @@ export class GameEngine {
     this.weaponScene.add(this.weaponCamera);
 
     this.setupLighting();
-
-    const textures = buildProceduralTextures(this.renderer.capabilities.getMaxAnisotropy());
-    this.shipWorld = buildTransportShip(this.scene, this.collision, textures);
     this.effects = new CombatEffects(this.scene);
-
-    this.viewmodel = new FirstPersonViewmodel('GR');
-    this.weaponCamera.add(this.viewmodel.root);
-    this.camera.add(this.viewmodel.worldMuzzleLight);
 
     this.touch = new TouchInputManager({
       onAim: () => this.handleSecondaryAction(),
@@ -163,6 +158,27 @@ export class GameEngine {
     });
 
     this.bindEvents();
+
+    const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    const previewBtn = document.getElementById('preview-ship-btn') as HTMLButtonElement;
+    startBtn.disabled = true;
+    previewBtn.disabled = true;
+    startBtn.textContent = '正在加载 Blender 3D 精模与 AI 贴图 (0%)...';
+
+    loadAllGameAssets(this.renderer.capabilities.getMaxAnisotropy(), (pct) => {
+      startBtn.textContent = `正在加载 Blender 3D 精模与 AI 贴图 (${pct}%)...`;
+    }).then((loaded) => {
+      this.assets = loaded;
+      this.shipWorld = buildTransportShip(this.scene, this.collision, loaded);
+      this.viewmodel = new FirstPersonViewmodel('GR', loaded);
+      this.weaponCamera.add(this.viewmodel.root);
+      this.camera.add(this.viewmodel.worldMuzzleLight);
+      this.assetsReady = true;
+      startBtn.disabled = false;
+      previewBtn.disabled = false;
+      startBtn.textContent = '进入运输船战场 (START MATCH)';
+    });
+
     this.loop(performance.now());
   }
 
@@ -452,6 +468,7 @@ export class GameEngine {
   }
 
   private startMatch(): void {
+    if (!this.assetsReady) return;
     document.getElementById('lobby-overlay')!.classList.add('hidden');
     document.getElementById('pause-overlay')!.classList.add('hidden');
     document.getElementById('result-overlay')!.classList.add('hidden');
@@ -461,7 +478,7 @@ export class GameEngine {
     // Rebuild first-person sleeves for chosen team
     this.weaponCamera.remove(this.viewmodel.root);
     this.camera.remove(this.viewmodel.worldMuzzleLight);
-    this.viewmodel = new FirstPersonViewmodel(this.config.playerTeam);
+    this.viewmodel = new FirstPersonViewmodel(this.config.playerTeam, this.assets);
     this.weaponCamera.add(this.viewmodel.root);
     this.camera.add(this.viewmodel.worldMuzzleLight);
 
@@ -484,11 +501,11 @@ export class GameEngine {
     const eTeam: TeamId = pTeam === 'GR' ? 'BL' : 'GR';
     for (let i = 0; i < this.config.teamSize - 1; i++) {
       const sp = this.shipWorld.spawns[pTeam][(i + 1) % this.shipWorld.spawns[pTeam].length];
-      this.bots.push(new BotSoldier(i, pTeam, true, this.scene, sp));
+      this.bots.push(new BotSoldier(i, pTeam, true, this.scene, sp, this.assets));
     }
     for (let i = 0; i < this.config.teamSize; i++) {
       const sp = this.shipWorld.spawns[eTeam][i % this.shipWorld.spawns[eTeam].length];
-      this.bots.push(new BotSoldier(i, eTeam, false, this.scene, sp));
+      this.bots.push(new BotSoldier(i, eTeam, false, this.scene, sp, this.assets));
     }
 
     this.respawnPlayer();
@@ -1189,6 +1206,12 @@ export class GameEngine {
     const dt = Math.min(0.05, Math.max(0.001, rawDt));
     this.totalTime += dt;
     this.fpsSmooth = THREE.MathUtils.lerp(this.fpsSmooth, 1 / Math.max(0.001, rawDt), 0.08);
+
+    if (!this.assetsReady) {
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
 
     // Animate ocean waves & spinning bridge radar in all phases
     this.shipWorld.updateEnvironment(this.totalTime);
