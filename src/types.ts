@@ -82,8 +82,11 @@ export interface WayNode {
   tag: 'spawn_gr' | 'spawn_bl' | 'mid' | 'left' | 'right' | 'sniper_gr' | 'sniper_bl' | 'tunnel' | 'container';
 }
 
+export type CharacterSkinId = 'hero_girl' | 'classic';
+
 export interface MatchConfig {
   playerTeam: TeamId;
+  characterSkin: CharacterSkinId;
   teamSize: number; // 5 or 8
   targetKills: number; // 50, 100, 150
   difficulty: 'easy' | 'normal' | 'hard';

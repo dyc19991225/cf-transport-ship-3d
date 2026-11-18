@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { TeamId, WeaponId } from '../types';
+import { CharacterSkinId, TeamId, WeaponId } from '../types';
 
 export type ContainerColorKey = 'red' | 'blue' | 'green' | 'yellow' | 'orange';
 export type SoldierLimbName = 'Torso' | 'Head' | 'ArmR' | 'ArmL' | 'LegL' | 'LegR';
+export type HeroLimbName = SoldierLimbName | 'TwinTailL' | 'TwinTailR';
 
 export interface LoadedGameAssets {
   deckMat: THREE.MeshStandardMaterial;
@@ -21,7 +22,8 @@ export interface LoadedGameAssets {
   createShipProp: (name: 'GantryCrane' | 'BridgeSuperstructure' | 'ForecastleBow' | 'Lifebuoy' | 'TunnelPipeSegment') => THREE.Object3D;
   createWeaponMesh: (id: WeaponId) => THREE.Group;
   createSoldierLimb: (team: TeamId, limb: SoldierLimbName) => THREE.Object3D;
-  createFPSArm: (team: TeamId, isLeft: boolean) => THREE.Object3D;
+  createHeroLimb: (limb: HeroLimbName) => THREE.Object3D;
+  createFPSArm: (team: TeamId, isLeft: boolean, skin?: CharacterSkinId) => THREE.Object3D;
 }
 
 export async function loadAllGameAssets(
@@ -33,7 +35,7 @@ export async function loadAllGameAssets(
   const gltfLoader = new GLTFLoader();
 
   let doneCount = 0;
-  const totalItems = 22;
+  const totalItems = 25;
   const tick = (label: string) => {
     doneCount++;
     onProgress?.(Math.min(100, Math.round((doneCount / totalItems) * 100)), label);
@@ -89,12 +91,15 @@ export async function loadAllGameAssets(
     blMercTexGLTF,
     vestArmorTexGLTF,
     bandanaTexGLTF,
+    animeFaceTexGLTF,
+    animeBackLogoTexGLTF,
     woodCrateGLB,
     isoContainerGLB,
     hollowContainerGLB,
     shipStructuresGLB,
     weaponsArsenalGLB,
     soldiersHighpolyGLB,
+    animeHeroRiggedGLB,
   ] = await Promise.all([
     loadTex('./textures/deck_steel.jpg', 14, 44, false),
     loadTex('./textures/deck_steel.jpg', 3, 3, false),
@@ -112,12 +117,15 @@ export async function loadAllGameAssets(
     loadTex('./textures/bl_merc_fabric.jpg', 3, 3, true),
     loadTex('./textures/tactical_vest_armor.jpg', 2, 2, true),
     loadTex('./textures/bandana_crimson.jpg', 2, 2, true),
+    loadTex('./textures/anime_face_sym.png', 1, 1, true),
+    loadTex('./textures/anime_back_logo.png', 1, 1, true),
     loadGLB('./models/wood_crate.glb'),
     loadGLB('./models/container_iso.glb'),
     loadGLB('./models/container_hollow.glb'),
     loadGLB('./models/ship_structures.glb'),
     loadGLB('./models/weapons_arsenal.glb'),
     loadGLB('./models/soldiers_highpoly.glb'),
+    loadGLB('./models/anime_hero_rigged.glb'),
   ]);
 
   // 1. World Surface PBR Materials
@@ -370,6 +378,35 @@ export async function loadAllGameAssets(
     }
   });
 
+  // 6. Bind Anime Face & Back Swirl Logo Textures onto Rigged Twin-Tail Hero Girl!
+  animeFaceTexGLTF.wrapS = THREE.ClampToEdgeWrapping;
+  animeFaceTexGLTF.wrapT = THREE.ClampToEdgeWrapping;
+  animeBackLogoTexGLTF.wrapS = THREE.ClampToEdgeWrapping;
+  animeBackLogoTexGLTF.wrapT = THREE.ClampToEdgeWrapping;
+
+  const heroFaceMat = new THREE.MeshStandardMaterial({
+    map: animeFaceTexGLTF,
+    roughness: 0.65,
+    metalness: 0.0,
+  });
+  const heroBackLogoMat = new THREE.MeshStandardMaterial({
+    map: animeBackLogoTexGLTF,
+    color: 0xb0aabf,
+    roughness: 0.6,
+    metalness: 0.04,
+  });
+
+  animeHeroRiggedGLB.traverse((obj) => {
+    if ((obj as THREE.Mesh).isMesh) {
+      const m = obj as THREE.Mesh;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      const mn = (m.material as THREE.Material)?.name || '';
+      if (mn.includes('HERO_FACE')) m.material = heroFaceMat;
+      else if (mn.includes('HERO_BACKLOGO')) m.material = heroBackLogoMat;
+    }
+  });
+
   const weaponNodeMap: Record<WeaponId, string> = {
     ak47: 'Weapon_AK47',
     m4a1s: 'Weapon_M4A1S',
@@ -466,7 +503,29 @@ export async function loadAllGameAssets(
       return clone;
     },
 
-    createFPSArm: (team, isLeft) => {
+    createHeroLimb: (limb) => {
+      const nodeName = `HERO_${limb}`;
+      const found = animeHeroRiggedGLB.getObjectByName(nodeName);
+      if (!found) return new THREE.Group();
+      const clone = found.clone(true);
+      clone.position.set(0, 0, 0);
+      clone.rotation.set(0, 0, 0);
+      clone.scale.set(1, 1, 1);
+      return clone;
+    },
+
+    createFPSArm: (team, isLeft, skin = 'classic') => {
+      if (skin === 'hero_girl') {
+        const heroNode = `FPS_${isLeft ? 'ArmL' : 'ArmR'}_HERO`;
+        const foundHero = animeHeroRiggedGLB.getObjectByName(heroNode);
+        if (foundHero) {
+          const clone = foundHero.clone(true);
+          clone.position.set(0, 0, 0);
+          clone.rotation.set(0, 0, 0);
+          clone.scale.set(1, 1, 1);
+          return clone;
+        }
+      }
       const nodeName = `FPS_${isLeft ? 'ArmL' : 'ArmR'}_${team}`;
       const found = soldiersHighpolyGLB.getObjectByName(nodeName);
       if (!found) return new THREE.Group();

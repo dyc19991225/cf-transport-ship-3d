@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LoadedGameAssets } from '../assets/assetManager';
-import { TeamId, WeaponId } from '../types';
+import { CharacterSkinId, TeamId, WeaponId } from '../types';
 
 export class FirstPersonViewmodel {
   public readonly root = new THREE.Group();
@@ -22,17 +22,17 @@ export class FirstPersonViewmodel {
   private flashTimer = 0;
   private bobPhase = 0;
 
-  constructor(team: TeamId, assets: LoadedGameAssets) {
+  constructor(team: TeamId, assets: LoadedGameAssets, skin: CharacterSkinId = 'hero_girl') {
     this.root.add(this.swayGroup);
 
     const buildWithHands = (id: WeaponId, frontZ: number, oneHanded = false): THREE.Group => {
       const grp = assets.createWeaponMesh(id);
       if (!oneHanded) {
-        const armL = assets.createFPSArm(team, true);
+        const armL = assets.createFPSArm(team, true, skin);
         armL.position.set(-0.006, -0.02, frontZ);
         grp.add(armL);
       }
-      const armR = assets.createFPSArm(team, false);
+      const armR = assets.createFPSArm(team, false, skin);
       armR.position.set(oneHanded ? 0.02 : 0.0, oneHanded ? -0.055 : -0.072, oneHanded ? -0.14 : 0.025);
       grp.add(armR);
       return grp;

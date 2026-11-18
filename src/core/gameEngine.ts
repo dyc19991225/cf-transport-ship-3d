@@ -7,9 +7,10 @@ import { LOADOUT_BAGS, WEAPONS } from '../weapons/weaponDefs';
 import { FirstPersonViewmodel } from '../weapons/viewmodel';
 import { CombatEffects } from '../effects/combatEffects';
 import { BotSoldier } from '../entities/botSoldier';
+import { SoldierVisualRig } from '../entities/soldierModel';
 import { HudController, RadarBlip, ScoreboardEntry } from '../ui/hudController';
 import { TouchInputManager } from '../ui/touchInput';
-import { MatchConfig, TeamId, WeaponId, WeaponSlot } from '../types';
+import { CharacterSkinId, MatchConfig, TeamId, WeaponId, WeaponSlot } from '../types';
 
 type GamePhase = 'lobby' | 'playing' | 'paused' | 'overview' | 'ended';
 
@@ -29,12 +30,15 @@ export class GameEngine {
   private assets!: LoadedGameAssets;
   private shipWorld!: BuiltShipWorld;
   private viewmodel!: FirstPersonViewmodel;
+  private playerRig: SoldierVisualRig | null = null;
+  private thirdPersonMode = false;
   private assetsReady = false;
   private phase: GamePhase = 'lobby';
   private returnPhaseAfterOverview: GamePhase = 'lobby';
 
   private config: MatchConfig = {
     playerTeam: 'GR',
+    characterSkin: 'hero_girl',
     teamSize: 5,
     targetKills: 100,
     difficulty: 'normal',
@@ -270,6 +274,7 @@ export class GameEngine {
     };
 
     bindGroup('team-select', (v) => { this.config.playerTeam = v as TeamId; });
+    bindGroup('skin-select', (v) => { this.config.characterSkin = v as CharacterSkinId; });
     bindGroup('bag-select', (v) => { this.config.initialBag = Number(v); });
     bindGroup('roster-select', (v) => { this.config.teamSize = Number(v); });
     bindGroup('target-select', (v) => { this.config.targetKills = Number(v); });
@@ -424,6 +429,17 @@ export class GameEngine {
 
       if (this.phase !== 'playing') return;
 
+      if (e.code === 'KeyV') {
+        this.thirdPersonMode = !this.thirdPersonMode;
+        this.hud.showNotice(
+          this.thirdPersonMode
+            ? '已切换至【第三人称越肩视角】· 再次按 V 返回第一人称'
+            : '已切换至【第一人称经典视角】',
+          1.8
+        );
+        return;
+      }
+
       if (e.code === 'KeyB') {
         this.toggleBagDrawer();
         return;
@@ -475,12 +491,25 @@ export class GameEngine {
     document.getElementById('overview-banner')!.classList.add('hidden');
     document.getElementById('kill-feed')!.innerHTML = '';
 
-    // Rebuild first-person sleeves for chosen team
+    // Rebuild first-person sleeves & player's own 3D rig for chosen team + skin!
     this.weaponCamera.remove(this.viewmodel.root);
     this.camera.remove(this.viewmodel.worldMuzzleLight);
-    this.viewmodel = new FirstPersonViewmodel(this.config.playerTeam, this.assets);
+    this.viewmodel = new FirstPersonViewmodel(this.config.playerTeam, this.assets, this.config.characterSkin);
     this.weaponCamera.add(this.viewmodel.root);
     this.camera.add(this.viewmodel.worldMuzzleLight);
+
+    if (this.playerRig) {
+      this.scene.remove(this.playerRig.root);
+    }
+    this.playerRig = new SoldierVisualRig(
+      this.config.playerTeam,
+      true,
+      LOADOUT_BAGS[this.config.initialBag].primary,
+      this.assets,
+      this.config.characterSkin === 'hero_girl',
+      false
+    );
+    this.scene.add(this.playerRig.root);
 
     this.scoreGR = 0;
     this.scoreBL = 0;
@@ -567,6 +596,9 @@ export class GameEngine {
     this.hud.setCrosshairGap(6, true);
     document.getElementById('overview-banner')!.classList.remove('hidden');
     this.viewmodel.root.visible = false;
+    if (this.playerRig && from !== 'lobby') {
+      this.playerRig.root.visible = true;
+    }
     this.camera.fov = 62;
     this.camera.updateProjectionMatrix();
   }
@@ -685,6 +717,9 @@ export class GameEngine {
     this.drawCooldown = spec.drawTime;
     this.fireCooldown = spec.drawTime * 0.75;
     this.viewmodel.equip(wId, spec.drawTime);
+    if (this.playerRig && this.assetsReady) {
+      this.playerRig.setWeapon(wId, this.assets);
+    }
     if (wId === 'kukri') {
       this.sound.playKnifeDraw();
     }
@@ -849,6 +884,7 @@ export class GameEngine {
 
     this.sound.playWeaponFire(wId, 0, 1.0);
     this.viewmodel.triggerFire(Boolean(spec.suppressed), spec.boltTime ?? 0);
+    this.playerRig?.triggerMuzzleFlash();
 
     // Eject brass shell casing
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
@@ -1243,7 +1279,7 @@ export class GameEngine {
 
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
-    if (this.viewmodel.root.visible && this.scopeStage === 0) {
+    if (this.viewmodel.root.visible && this.scopeStage === 0 && !this.thirdPersonMode) {
       this.renderer.clearDepth();
       this.renderer.render(this.weaponScene, this.weaponCamera);
     }
@@ -1378,18 +1414,60 @@ export class GameEngine {
         }
       }
 
-      // Smooth eye height + camera transform
+      // Smooth eye height + 1st-Person / 3rd-Person Over-The-Shoulder Camera Transform!
       const targetEyeY = this.playerState.y + (crouching ? 1.04 : 1.66);
-      this.camera.position.x = this.playerState.x + (Math.random() - 0.5) * this.screenShake * 0.08;
-      this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, targetEyeY, Math.min(1, dt * 16));
-      this.camera.position.z = this.playerState.z + (Math.random() - 0.5) * this.screenShake * 0.08;
-
-      this.camera.rotation.y = this.playerYaw + this.recoilOffsetYaw;
-      this.camera.rotation.x = THREE.MathUtils.clamp(
+      const camYaw = this.playerYaw + this.recoilOffsetYaw;
+      const camPitch = THREE.MathUtils.clamp(
         this.playerPitch + this.recoilOffsetPitch,
         -Math.PI / 2 + 0.02,
         Math.PI / 2 - 0.02
       );
+
+      this.camera.rotation.y = camYaw;
+      this.camera.rotation.x = camPitch;
+
+      const show3P = this.thirdPersonMode && this.scopeStage === 0;
+      if (this.playerRig) {
+        this.playerRig.root.visible = show3P;
+        this.playerRig.update(
+          dt,
+          this.playerState.x,
+          this.playerState.y,
+          this.playerState.z,
+          this.playerYaw,
+          this.playerPitch,
+          actualHoriz,
+          crouching,
+          true,
+          0,
+          this.playerInvuln
+        );
+      }
+
+      if (show3P) {
+        // Over-the-right-shoulder camera with wall-collision clamping!
+        const headPivot = new THREE.Vector3(this.playerState.x, targetEyeY + 0.12, this.playerState.z);
+        const lookBack = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(camPitch * 0.65, camYaw, 0, 'YXZ'));
+        const rightShoulder = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), camYaw);
+        const desiredCam = headPivot
+          .clone()
+          .addScaledVector(rightShoulder, 0.42)
+          .addScaledVector(lookBack, 2.35);
+
+        const toCam = desiredCam.clone().sub(headPivot);
+        const maxCamDist = toCam.length();
+        toCam.normalize();
+        const wallCheck = this.collision.castBulletRay(headPivot, toCam, maxCamDist, 0, [], 'player');
+        const safeDist = wallCheck.impacts.length > 0
+          ? Math.max(0.45, wallCheck.impacts[0].point.distanceTo(headPivot) - 0.22)
+          : maxCamDist;
+
+        this.camera.position.copy(headPivot).addScaledVector(toCam, safeDist);
+      } else {
+        this.camera.position.x = this.playerState.x + (Math.random() - 0.5) * this.screenShake * 0.08;
+        this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, targetEyeY, Math.min(1, dt * 16));
+        this.camera.position.z = this.playerState.z + (Math.random() - 0.5) * this.screenShake * 0.08;
+      }
 
       // Continuous automatic firing
       if ((this.mouseDownLeft || this.touch.firing) && weaponSpec.automatic) {

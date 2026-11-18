@@ -7,10 +7,10 @@ import { TeamId, WayNode, WeaponId } from '../types';
 import { WEAPONS } from '../weapons/weaponDefs';
 
 const BOT_CALLSIGNS_GR = [
-  '70kg·狙神', '白鲨_AyoM', '念旧_M4王', '常旭_战神', '绿豆_大炮', '年鹏_队长', '子豪_突破',
+  '70kg·狙神', '白鲨_AyoM', '葵·紫瞳少女[英雄]', '常旭_战神', '绿豆_大炮', '年鹏_队长', '子豪_突破',
 ];
 const BOT_CALLSIGNS_BL = [
-  '马哲_MZ', '绝迹_AK帝', 'Even_孤狼', '漠然_暗道', '肖奇伦_点射', '林肯_火麒麟', '潇潇_瞬狙',
+  '马哲_MZ', '绝迹_AK帝', '零·双马尾[英雄]', '漠然_暗道', '肖奇伦_点射', '林肯_火麒麟', '潇潇_瞬狙',
 ];
 
 export type BotRole = 'mid_rusher' | 'sniper_tower' | 'tunnel_flanker' | 'side_lane';
@@ -108,7 +108,8 @@ export class BotSoldier {
     this.yaw = spawn.yaw;
     this.lastCheckPos.set(spawn.x, spawn.y, spawn.z);
 
-    this.rig = new SoldierVisualRig(team, isAllyToPlayer, this.weaponId, assets);
+    const isHeroGirlBot = index === 2;
+    this.rig = new SoldierVisualRig(team, isAllyToPlayer, this.weaponId, assets, isHeroGirlBot);
     scene.add(this.rig.root);
   }
 
